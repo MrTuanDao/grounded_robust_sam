@@ -28,8 +28,8 @@ sam_predictor = SamPredictor(sam)
 
 
 # Predict classes and hyper-param for GroundingDINO
-SOURCE_IMAGE_PATH = "./assets/demo2.jpg"
-CLASSES = ["The running dog"]
+SOURCE_IMAGE_PATH = "download.webp"
+CLASSES = ["hat"]
 BOX_THRESHOLD = 0.25
 TEXT_THRESHOLD = 0.25
 NMS_THRESHOLD = 0.8
