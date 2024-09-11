@@ -13,15 +13,10 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 GROUNDING_DINO_CONFIG_PATH = "GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
 GROUNDING_DINO_CHECKPOINT_PATH = "./groundingdino_swint_ogc.pth"
 
-# Segment-Anything checkpoint
-SAM_ENCODER_VERSION = "vit_h"
-SAM_CHECKPOINT_PATH = "./sam_vit_h_4b8939.pth"
-
 # Building GroundingDINO inference model
 grounding_dino_model = Model(model_config_path=GROUNDING_DINO_CONFIG_PATH, model_checkpoint_path=GROUNDING_DINO_CHECKPOINT_PATH)
 
 # Predict classes and hyper-param for GroundingDINO
-
 BOX_THRESHOLD = 0.25
 TEXT_THRESHOLD = 0.25
 NMS_THRESHOLD = 0.8

@@ -10,8 +10,8 @@ import torch
 import torch.nn as nn
 from PIL import Image
 
-from robust_segment_anything import SamPredictor, sam_model_registry
-from robust_segment_anything import SamAutomaticMaskGenerator, sam_model_registry
+from robust_segment_anything import sam_model_registry
+from robust_segment_anything import sam_model_registry
 from robust_segment_anything.utils.transforms import ResizeLongestSide 
 
 def show_boxes(coords, ax):
@@ -21,12 +21,6 @@ def show_boxes(coords, ax):
     bbox = patches.Rectangle((x1, y1), width, height, linewidth=3, edgecolor='r', facecolor='none')
     ax.add_patch(bbox)
    
-def show_points(coords, labels, ax, marker_size=500):
-    pos_points = coords[labels==1]
-    neg_points = coords[labels==0]
-    ax.scatter(pos_points[:, 0], pos_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
-    ax.scatter(neg_points[:, 0], neg_points[:, 1], color='green', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)   
-
 def show_mask(mask, ax, random_color=False):
     if random_color:
         color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
