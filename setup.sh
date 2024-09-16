@@ -1,5 +1,5 @@
 #!/bin/bash
-pip install torch==2.1.0
+pip install torch==2.1.0 wheel numpy==1.24.1
 pip install --no-build-isolation -e GroundingDINO
 pip install -r requirements.txt
 
