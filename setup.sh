@@ -1,4 +1,5 @@
 #!/bin/bash
+pip install torch==2.1.0+cu118
 pip install --no-build-isolation -e GroundingDINO
 pip install -r requirements.txt
 
