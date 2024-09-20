@@ -110,7 +110,7 @@ def process_entry(entry, entry_number, mask_folder_path, output_folder_path):
 
 def main():
     # Paths
-    metadata_file_path = "./metadata.json"  # Ensure this is your metadata file path
+    metadata_file_path = "./chuan_metadata.json"  # Ensure this is your metadata file path
     mask_folder_path = "./test_mask/"
     output_folder_path = "./test_segment/"
     new_metadata_file_path = "./test_updated.json"  # Output file for updated metadata
