@@ -7,6 +7,7 @@
 
 # mask = robust_sam(image_path, bbox)
 
+# Required Imports
 from grounded import grounded, create_grounded_model
 from robust_sam import robust_sam, create_sam_model
 import os
@@ -16,6 +17,7 @@ import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 import time
+import requests
 
 warnings.filterwarnings("ignore")
 
@@ -34,144 +36,192 @@ def initializer():
     sam_model, sam_transform = create_sam_model()
     print(f"Worker {multiprocessing.current_process().name} initialized models.")
 
-def process_line(line, line_number, mask_folder_path, output_folder_path):
+def download_image(url, save_path):
     """
-    Processes a single line from the metadata file.
+    Downloads an image from a URL and saves it to the specified path.
+    """
+    try:
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(save_path, 'wb') as f:
+                for chunk in response.iter_content(1024):
+                    f.write(chunk)
+            print(f"Downloaded image from {url} to {save_path}")
+            return save_path
+        else:
+            print(f"Failed to download image from {url}. Status code: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Error downloading image from {url}: {e}")
+        return None
+
+def process_entry(entry, entry_number, mask_folder_path, output_folder_path):
+    """
+    Processes a single metadata entry.
     Returns the updated metadata dictionary.
     """
     try:
-        data = json.loads(line.strip())
-        image_url = data.get("url")
-        abs_image_path = data.get("image_file_path")
+        updated_entry = entry.copy()
         
-        if not abs_image_path or not os.path.exists(abs_image_path):
-            print(f"[Line {line_number}] Image path does not exist: {abs_image_path}. Skipping.")
-            # Update metadata with None values
-            updated_data = data.copy()
-            updated_data["mask_file_path"] = None
-            updated_data["segment_file_path"] = None
-            updated_data["shirt_detected"] = False
-            return updated_data
-
-        filename = os.path.basename(abs_image_path)
-        print(f"[Line {line_number}] Processing {filename}...")
-
-        # Generate expected mask and segment filenames
-        mask_filename = f"{os.path.splitext(filename)[0]}_mask.png"  # Mask filename
-        mask_path = os.path.join(mask_folder_path, mask_filename)
-        abs_mask_path = os.path.abspath(mask_path)
-
-        segment_filename = f"{os.path.splitext(filename)[0]}_segmented.png"  # Segment filename
-        segment_path = os.path.join(output_folder_path, segment_filename)
-        abs_segment_path = os.path.abspath(segment_path)
-
-        # Check if mask (and optionally segment) already exists
-        if os.path.exists(mask_path) and os.path.exists(segment_path):
-            print(f"[Line {line_number}] Mask and segmented images already exist for {filename}. Skipping processing.")
-            # Update metadata with existing paths
-            updated_data = data.copy()
-            updated_data["mask_file_path"] = abs_mask_path
-            updated_data["segment_file_path"] = abs_segment_path
-            updated_data["shirt_detected"] = True  # Assuming existing files are valid
-            return updated_data
-
-        # Step 1: Detect "shirt" in the image
-        detections = grounded(abs_image_path, "shirt", grounding_dino_model)
-
-        if len(detections.xyxy) > 0:
-            bbox = detections.xyxy[0]
-
-            # Step 2: Generate mask using robust_sam
-            mask = robust_sam(abs_image_path, bbox, sam_model, sam_transform)
-
-            # Save the mask image
-            mask.save(mask_path)
-
-            # Step 3: Create segmented image
-            instance_img = Image.open(abs_image_path).convert("RGBA")
-            mask = mask.convert("L")  # Convert to grayscale
-
-            # Create a white background
-            white_background = Image.new("RGB", instance_img.size, (255, 255, 255))
-
-            # Composite the instance image and the mask onto the white background
-            composite_img = Image.composite(instance_img, white_background, mask)
-
-            # Save the segmented image
-            composite_img.save(segment_path)
-
-            # Update the metadata with new paths
-            updated_data = data.copy()
-            updated_data["mask_file_path"] = abs_mask_path
-            updated_data["segment_file_path"] = abs_segment_path
-            updated_data["shirt_detected"] = True
-
-            print(f"[Line {line_number}] Processed {filename}: Mask saved as {mask_filename}, Segment saved as {segment_filename}")
-        else:
-            print(f"[Line {line_number}] No 'shirt' detected in {filename}. Updating metadata accordingly.")
-            # Update the metadata to reflect no detection
-            updated_data = data.copy()
-            updated_data["mask_file_path"] = None
-            updated_data["segment_file_path"] = None
-            updated_data["shirt_detected"] = False
-
-        return updated_data
-
-    except json.JSONDecodeError as e:
-        print(f"[Line {line_number}] Error decoding JSON: {e}. Line content: {line}")
-        # Optionally, handle the error by skipping or logging
-        return None
+        # Process Human Image if flag is True
+        if entry.get("process_user_image", False):
+            human_img_url = entry.get("human_img")
+            if human_img_url:
+                human_img_filename = f"human_{entry_number}.jpg"
+                human_img_path = os.path.join("downloaded_images", human_img_filename)
+                downloaded_human_img = download_image(human_img_url, human_img_path)
+                
+                if downloaded_human_img and os.path.exists(downloaded_human_img):
+                    # Process the human image
+                    detections = grounded(downloaded_human_img, "shirt", grounding_dino_model)
+                    
+                    if len(detections.xyxy) > 0:
+                        bbox = detections.xyxy[0]
+                        mask = robust_sam(downloaded_human_img, bbox, sam_model, sam_transform)
+                        
+                        # Save the mask
+                        mask_filename = f"human_{entry_number}_mask.png"
+                        mask_path = os.path.join(mask_folder_path, mask_filename)
+                        mask.save(mask_path)
+                        
+                        # Create segmented image
+                        instance_img = Image.open(downloaded_human_img).convert("RGBA")
+                        mask = mask.convert("L")
+                        white_background = Image.new("RGB", instance_img.size, (255, 255, 255))
+                        composite_img = Image.composite(instance_img, white_background, mask)
+                        segment_filename = f"human_{entry_number}_segmented.png"
+                        segment_path = os.path.join(output_folder_path, segment_filename)
+                        composite_img.save(segment_path)
+                        
+                        # Update metadata
+                        updated_entry["human_mask_file_path"] = os.path.abspath(mask_path)
+                        updated_entry["human_segment_file_path"] = os.path.abspath(segment_path)
+                        updated_entry["human_shirt_detected"] = True
+                        
+                        print(f"[Entry {entry_number}] Processed human image: Mask and segmented images saved.")
+                    else:
+                        print(f"[Entry {entry_number}] No 'shirt' detected in human image.")
+                        updated_entry["human_mask_file_path"] = None
+                        updated_entry["human_segment_file_path"] = None
+                        updated_entry["human_shirt_detected"] = False
+                else:
+                    print(f"[Entry {entry_number}] Failed to download human image. Skipping processing.")
+                    updated_entry["human_mask_file_path"] = None
+                    updated_entry["human_segment_file_path"] = None
+                    updated_entry["human_shirt_detected"] = False
+            else:
+                print(f"[Entry {entry_number}] No 'human_img' URL found.")
+        
+        # Process Garment Images if flag is True
+        if entry.get("process_garment_image", False):
+            garments = entry.get("garment_data", [])
+            for idx, garment in enumerate(garments):
+                garment_img_path = garment.get("image")
+                if garment_img_path and os.path.exists(garment_img_path):
+                    filename = os.path.basename(garment_img_path)
+                    print(f"[Entry {entry_number}, Garment {idx + 1}] Processing {filename}...")
+                    
+                    # Generate expected mask and segment filenames
+                    mask_filename = f"{os.path.splitext(filename)[0]}_mask.png"
+                    mask_path = os.path.join(mask_folder_path, mask_filename)
+                    
+                    segment_filename = f"{os.path.splitext(filename)[0]}_segmented.png"
+                    segment_path = os.path.join(output_folder_path, segment_filename)
+                    
+                    # Check if mask and segment already exist
+                    if os.path.exists(mask_path) and os.path.exists(segment_path):
+                        print(f"[Entry {entry_number}, Garment {idx + 1}] Mask and segmented images already exist. Skipping.")
+                        updated_entry["garment_data"][idx]["mask_file_path"] = os.path.abspath(mask_path)
+                        updated_entry["garment_data"][idx]["segment_file_path"] = os.path.abspath(segment_path)
+                        updated_entry["garment_data"][idx]["shirt_detected"] = True
+                        continue
+                    
+                    # Detect shirt in garment image
+                    detections = grounded(garment_img_path, "shirt", grounding_dino_model)
+                    
+                    if len(detections.xyxy) > 0:
+                        bbox = detections.xyxy[0]
+                        mask = robust_sam(garment_img_path, bbox, sam_model, sam_transform)
+                        
+                        # Save the mask
+                        mask.save(mask_path)
+                        
+                        # Create segmented image
+                        instance_img = Image.open(garment_img_path).convert("RGBA")
+                        mask = mask.convert("L")
+                        white_background = Image.new("RGB", instance_img.size, (255, 255, 255))
+                        composite_img = Image.composite(instance_img, white_background, mask)
+                        composite_img.save(segment_path)
+                        
+                        # Update metadata
+                        updated_entry["garment_data"][idx]["mask_file_path"] = os.path.abspath(mask_path)
+                        updated_entry["garment_data"][idx]["segment_file_path"] = os.path.abspath(segment_path)
+                        updated_entry["garment_data"][idx]["shirt_detected"] = True
+                        
+                        print(f"[Entry {entry_number}, Garment {idx + 1}] Processed: Mask and segmented images saved.")
+                    else:
+                        print(f"[Entry {entry_number}, Garment {idx + 1}] No 'shirt' detected.")
+                        updated_entry["garment_data"][idx]["mask_file_path"] = None
+                        updated_entry["garment_data"][idx]["segment_file_path"] = None
+                        updated_entry["garment_data"][idx]["shirt_detected"] = False
+                else:
+                    print(f"[Entry {entry_number}, Garment {idx + 1}] Garment image path does not exist: {garment_img_path}. Skipping.")
+                    updated_entry["garment_data"][idx]["mask_file_path"] = None
+                    updated_entry["garment_data"][idx]["segment_file_path"] = None
+                    updated_entry["garment_data"][idx]["shirt_detected"] = False
+        
+        return updated_entry
+    
     except Exception as e:
-        print(f"[Line {line_number}] An error occurred while processing: {e}. Line content: {line}")
-        # Optionally, handle the error by skipping or logging
+        print(f"[Entry {entry_number}] An error occurred while processing: {e}.")
         return None
 
 def main():
     # Paths
-    input_metadata_file_path = "./metadata.jsonl"
-    mask_folder_path = "./test_mask/"
-    output_folder_path = "./test_segment/"
-    new_metadata_file_path = "./test.jsonl"
-
-    # Create output folders if they don't exist
+    metadata_file_path = "./chuan_metadata.json"  # Updated to JSON instead of JSONL
+    mask_folder_path = "./mask/"
+    output_folder_path = "./segment/"
+    new_metadata_file_path = "./updated_metadata.json"  # Changed to JSON
+    
+    # Create necessary directories
+    os.makedirs("downloaded_images", exist_ok=True)
     os.makedirs(mask_folder_path, exist_ok=True)
     os.makedirs(output_folder_path, exist_ok=True)
-
+    
+    # Load metadata
+    with open(metadata_file_path, 'r') as f:
+        metadata = json.load(f)  # Load as a list of dictionaries
+    
     # List to store the results
     results = []
-
-    # Read all lines from the metadata file
-    with open(input_metadata_file_path, 'r') as file:
-        lines = file.readlines()  # Read all lines into a list
-
+    
     start_time = time.time()
-
+    
     # Use ProcessPoolExecutor with 3 workers
     with ProcessPoolExecutor(max_workers=3, initializer=initializer) as executor:
         # Submit all tasks to the executor
-        future_to_line = {
-            executor.submit(process_line, line, idx + 1, mask_folder_path, output_folder_path): idx + 1
-            for idx, line in enumerate(lines)
+        future_to_entry = {
+            executor.submit(process_entry, entry, idx + 1, mask_folder_path, output_folder_path): idx + 1
+            for idx, entry in enumerate(metadata)
         }
-
+        
         # Iterate over the completed futures as they finish
-        for future in as_completed(future_to_line):
-            line_number = future_to_line[future]
+        for future in as_completed(future_to_entry):
+            entry_number = future_to_entry[future]
             try:
                 result = future.result()
                 if result is not None:
                     results.append(result)
             except Exception as exc:
-                print(f"[Line {line_number}] Generated an exception: {exc}")
-
+                print(f"[Entry {entry_number}] Generated an exception: {exc}")
+    
     end_time = time.time()
     print(f"Processing completed in {end_time - start_time:.2f} seconds.")
-
-    # Step 4: Save the updated metadata to a new JSONL file
-    with open(new_metadata_file_path, "w") as jsonl_file:
-        for entry in results:
-            jsonl_file.write(json.dumps(entry) + "\n")
-
+    
+    # Save the updated metadata to a new JSON file
+    with open(new_metadata_file_path, "w") as json_file:
+        json.dump(results, json_file, indent=4)
+    
     print(f"Updated metadata saved to {new_metadata_file_path}")
 
 if __name__ == "__main__":
@@ -181,9 +231,9 @@ if __name__ == "__main__":
     except RuntimeError:
         # If the start method has already been set, this will raise a RuntimeError
         pass
-
+    
     start = time.time()
-
+    
     while True:
         try:
             main()  # Run the main function
@@ -192,6 +242,6 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Main function crashed or was killed with error: {e}. Restarting...")
             time.sleep(1)  # Optional: wait before restarting
-
+    
     end = time.time()
     print("Finish process in:", end - start)
