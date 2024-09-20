@@ -38,16 +38,18 @@ opt.gpu = 0
 opt.model_size = 'l'
 opt.checkpoint_path = "robustsam_checkpoint_l.pth"
 opt.checkpoint_path = 'robustsam_checkpoint_{}.pth'.format(opt.model_size)    
-model = sam_model_registry["vit_{}".format(opt.model_size)](opt=opt, checkpoint=opt.checkpoint_path)
 
-model = model.to(opt.gpu)
-print('Succesfully loading model from {}'.format(opt.checkpoint_path))
+def create_sam_model():
+    sam_model = sam_model_registry["vit_{}".format(opt.model_size)](opt=opt, checkpoint=opt.checkpoint_path)
+    sam_model = sam_model.to(opt.gpu)
+    print('Succesfully loading model from {}'.format(opt.checkpoint_path))
+    sam_transform = ResizeLongestSide(sam_model.image_encoder.img_size)
 
-sam_transform = ResizeLongestSide(model.image_encoder.img_size)
+    return sam_model, sam_transform
 
-print('Use bounding box as prompt !')
+print('Use bounding box as prompt!')
 
-def robust_sam(image_path, box_prompt):
+def robust_sam(image_path, box_prompt, sam_model, sam_transform):
     image = cv2.imread(image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) 
     image_t = torch.tensor(image, dtype=torch.uint8).unsqueeze(0).to(opt.gpu)

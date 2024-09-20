@@ -13,15 +13,16 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 GROUNDING_DINO_CONFIG_PATH = "GroundingDINO/groundingdino/config/GroundingDINO_SwinB.py"
 GROUNDING_DINO_CHECKPOINT_PATH = "./groundingdino_swinb_cogcoor.pth"
 
-# Building GroundingDINO inference model
-grounding_dino_model = Model(model_config_path=GROUNDING_DINO_CONFIG_PATH, model_checkpoint_path=GROUNDING_DINO_CHECKPOINT_PATH)
+def create_grounded_model():
+    # Building GroundingDINO inference model
+    return Model(model_config_path=GROUNDING_DINO_CONFIG_PATH, model_checkpoint_path=GROUNDING_DINO_CHECKPOINT_PATH)
 
 # Predict classes and hyper-param for GroundingDINO
 BOX_THRESHOLD = 0.25
 TEXT_THRESHOLD = 0.25
 NMS_THRESHOLD = 0.8
 
-def grounded(image_path, text_prompt):
+def grounded(image_path, text_prompt, grounding_dino_model):
     CLASSES = [text_prompt]
     # load image
     image = cv2.imread(image_path)
