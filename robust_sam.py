@@ -63,7 +63,7 @@ def robust_sam(image_path, box_prompt, sam_model, sam_transform):
     data_dict['original_size'] = image_t.shape[-2:]  
 
     with torch.no_grad():   
-        batched_output = model.predict(opt, [data_dict], multimask_output=False, return_logits=False)    
+        batched_output = sam_model.predict(opt, [data_dict], multimask_output=False, return_logits=False)    
 
     output_mask = batched_output[0]['masks']
     plt.figure(figsize=(10,10))
