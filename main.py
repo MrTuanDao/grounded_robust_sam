@@ -133,7 +133,10 @@ def main():
             jsonl_file.write(json.dumps(entry) + "\n")
     
     print(f"Updated metadata saved to {new_metadata_file_path}")
-    
+
+import time
+start = time.time()
+
 while True:
     try:
         main()  # Run the main function
@@ -143,3 +146,5 @@ while True:
         print(f"Main function crashed or was killed with error: {e}. Restarting...")
         time.sleep(1)  # Optional: wait before restarting
     
+end = time.time()
+print("Finish process in:", end - start)

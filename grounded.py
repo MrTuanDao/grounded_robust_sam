@@ -45,7 +45,6 @@ def grounded(image_path, text_prompt, grounding_dino_model):
     
     # save the annotated grounding dino image
     cv2.imwrite("after_grounded.png", annotated_frame)
-    print(detections)
     
     # NMS post process
     nms_idx = torchvision.ops.nms(
