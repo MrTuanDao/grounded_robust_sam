@@ -11,6 +11,7 @@
 from grounded import grounded, create_grounded_model
 from robust_sam import robust_sam, create_sam_model
 import os
+import shutil  # Added for directory removal
 from PIL import Image
 import json
 import warnings
@@ -114,13 +115,31 @@ def main():
     output_folder_path = "./test_segment/"
     new_metadata_file_path = "./test_updated.json"  # Output file for updated metadata
     
+    # Directories to remove before processing
+    directories_to_remove = [mask_folder_path, output_folder_path]
+    
+    # Remove specified directories if they exist
+    for dir_path in directories_to_remove:
+        if os.path.exists(dir_path):
+            try:
+                shutil.rmtree(dir_path)
+                print(f"Removed existing directory: {dir_path}")
+            except Exception as e:
+                print(f"Error removing directory {dir_path}: {e}")
+    
     # Create necessary directories
-    os.makedirs(mask_folder_path, exist_ok=True)
-    os.makedirs(output_folder_path, exist_ok=True)
+    for dir_path in directories_to_remove:
+        os.makedirs(dir_path, exist_ok=True)
+        print(f"Created directory: {dir_path}")
     
     # Load metadata
-    with open(metadata_file_path, 'r') as f:
-        metadata = json.load(f)  # Load as a list of dictionaries
+    try:
+        with open(metadata_file_path, 'r') as f:
+            metadata = json.load(f)  # Load as a list of dictionaries
+        print(f"Loaded metadata from {metadata_file_path}")
+    except Exception as e:
+        print(f"Error loading metadata file: {e}")
+        return  # Exit the main function if metadata loading fails
     
     # List to store the results
     results = []
@@ -149,10 +168,12 @@ def main():
     print(f"Processing completed in {end_time - start_time:.2f} seconds.")
     
     # Save the updated metadata to a new JSON file
-    with open(new_metadata_file_path, "w") as json_file:
-        json.dump(results, json_file, indent=4)
-    
-    print(f"Updated metadata saved to {new_metadata_file_path}")
+    try:
+        with open(new_metadata_file_path, "w") as json_file:
+            json.dump(results, json_file, indent=4)
+        print(f"Updated metadata saved to {new_metadata_file_path}")
+    except Exception as e:
+        print(f"Error saving updated metadata: {e}")
 
 if __name__ == "__main__":
     # Set the multiprocessing start method to 'spawn'
