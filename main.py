@@ -19,7 +19,7 @@ import time
 
 warnings.filterwarnings("ignore")
 
-# Global variables for models
+# Global variables for models (to be initialized in each worker)
 grounding_dino_model = None
 sam_model = None
 sam_transform = None
@@ -169,13 +169,19 @@ def main():
 
     # Step 4: Save the updated metadata to a new JSONL file
     with open(new_metadata_file_path, "w") as jsonl_file:
-        print(results)
         for entry in results:
             jsonl_file.write(json.dumps(entry) + "\n")
 
     print(f"Updated metadata saved to {new_metadata_file_path}")
 
 if __name__ == "__main__":
+    # Set the multiprocessing start method to 'spawn'
+    try:
+        multiprocessing.set_start_method('spawn')
+    except RuntimeError:
+        # If the start method has already been set, this will raise a RuntimeError
+        pass
+
     start = time.time()
 
     while True:
