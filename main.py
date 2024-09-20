@@ -69,7 +69,7 @@ def process_entry(entry, entry_number, mask_folder_path, output_folder_path):
                         continue
                     
                     # Detect shirt in garment image
-                    detections = grounded(garment_img_path, "upper clothes", grounding_dino_model)
+                    detections = grounded(garment_img_path, "jacket, shirt", grounding_dino_model)
                     
                     if len(detections.xyxy) > 0:
                         bbox = detections.xyxy[0]
